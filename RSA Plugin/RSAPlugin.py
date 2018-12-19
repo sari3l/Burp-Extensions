@@ -57,7 +57,7 @@ class BurpExtender(IBurpExtender, ITab, IContextMenuFactory):
 		self.settingLabel = swing.JLabel("Settings")
 		self.settingLabel.setFont(Font("Tahoma", 1, 12))
 		self.autoreplaceCheckBox = swing.JCheckBox("Auto Replace (auto replace the words selected with the RSA result)", actionPerformed=self.autoReplaceCheck)
-		self.urlcodeenableCheckBox = swing.JCheckBox("Urlcode Enable (use for data has been base64 en/decoded)", actionPerformed=self.urlcodeEnableCheck)
+		self.urlcodeenableCheckBox = swing.JCheckBox("Urlcode Enable (for the data needs to be base64 en/decoded before/after RSA)", actionPerformed=self.urlcodeEnableCheck)
 		self.logLabel = swing.JLabel("Log")
 		self.logLabel.setFont(Font("Tahoma", 1, 12))
 		self.logPane = swing.JScrollPane()
@@ -177,25 +177,19 @@ class BurpExtender(IBurpExtender, ITab, IContextMenuFactory):
 		self._invocation = invocation
 		self._messages_index = self._invocation.getSelectionBounds()
 		self._messages = self._invocation.getSelectedMessages()
+		self._servicetype = self._invocation.getInvocationContext() % 2
 		top_menu = swing.JMenu(self._title)
-		menus = [
-			swing.JMenuItem("publicKey Ecrypt    -- Request", actionPerformed=self.rasPubEnRq),
-			swing.JMenuItem("publicKey Decrypt  -- Request", actionPerformed=self.rsapubdeRq),
-			swing.JMenuItem("privateKey Encrypt -- Request", actionPerformed=self.rsaprienRq),
-			swing.JMenuItem("privateKey Decrypt -- Request", actionPerformed=self.rsaprideRq),
-			swing.JMenuItem("publicKey Ecrypt     -- Response", actionPerformed=self.rasPubEnRp),
-			swing.JMenuItem("publicKey Decrypt  -- Response", actionPerformed=self.rsapubdeRp),
-			swing.JMenuItem("privateKey Encrypt -- Response", actionPerformed=self.rsaprienRp),
-			swing.JMenuItem("privateKey Decrypt -- Response", actionPerformed=self.rsaprideRp)
-		]
-		for _item in menus :
-			top_menu.add(_item)
+		for _item in self.typeString:
+			top_menu.add(swing.JMenuItem(_item, actionPerformed=lambda x: self.evenHandler(x)))
 		return [top_menu]
 
 	# ---------------------
 	#       Events
 	# ---------------------
 
+	def evenHandler(self, x):
+		self.rsaFunc(self.typeString.index(x.getSource().text))
+		
 	def setOptions(self, event):
 		pubText = self.rsapublickeyTextArea.getText().strip('\n')
 		if pubText != None and len(pubText) > 0:
@@ -205,7 +199,7 @@ class BurpExtender(IBurpExtender, ITab, IContextMenuFactory):
 				status = True
 			except:
 				pass
-			self.info_print(status, "set Public Key.")
+			self.logPrint(status, "set Public Key.")
 
 		priText = self.rsaprivatekeyTextArea.getText().strip('\n')
 		if priText != None and len(priText) > 0:
@@ -215,7 +209,7 @@ class BurpExtender(IBurpExtender, ITab, IContextMenuFactory):
 				status = True
 			except:
 				pass
-			self.info_print(status, "set Private Key.")
+			self.logPrint(status, "set Private Key.")
 
 	def generateKeys(self,event):
 		status = False
@@ -226,7 +220,7 @@ class BurpExtender(IBurpExtender, ITab, IContextMenuFactory):
 			status = True
 		except:
 			pass
-		self.info_print(status, "Generate Keys.")
+		self.logPrint(status, "Generate Keys.")
 		self.setOptions(None)
 
 	def logClear(self, event):
@@ -239,7 +233,7 @@ class BurpExtender(IBurpExtender, ITab, IContextMenuFactory):
 			status = True
 		except:
 			pass
-		self.info_print(status, "AutoReplace is %s."%(self.buttonStatus[self.autoReplaceStuts]))
+		self.logPrint(status, "AutoReplace is %s."%(self.buttonStatus[self.autoReplaceStuts]))
 	
 	def urlcodeEnableCheck(self, event):
 		status = False
@@ -248,90 +242,67 @@ class BurpExtender(IBurpExtender, ITab, IContextMenuFactory):
 			status = True
 		except:
 			pass
-		self.info_print(status, "Urlcode is %s."%(self.buttonStatus[self.urlcodeEnableStuts]))
+		self.logPrint(status, "Urlcode is %s."%(self.buttonStatus[self.urlcodeEnableStuts]))
 
 	# ---------------------
 	#       Methods
 	# ---------------------
 
-	"""
-	@param method:	0 - Request
-					1 - Response
-	@return: String
-	"""
-	def getSelectedMessagesString(self, method):
-		if method == 0:
+	def getSelectedMessagesString(self):
+		if self._servicetype == 0:
 			self._tmpService = self._messages[0].getRequest()
-		elif method == 1:
+		elif self._servicetype == 1:
 			self._tmpService = self._messages[0].getResponse()
 		self._tmpText = self._tmpService[self._messages_index[0]:self._messages_index[1]].tostring()
 		return self._tmpText
 
-	# Request button event
-	def rasPubEnRq(self, event):
-		self.rsa_func(0, 0)
-
-	def rsapubdeRq(self, event):
-		self.rsa_func(1, 0)
-	
-	def rsaprienRq(self, event):
-		self.rsa_func(2, 0)
-
-	def rsaprideRq(self, event):
-		self.rsa_func(3, 0)
-
-	# Response button event
-	def rasPubEnRp(self, event):
-		self.rsa_func(0, 1)
-
-	def rsapubdeRp(self, event):
-		self.rsa_func(1, 1)
-	
-	def rsaprienRp(self, event):
-		self.rsa_func(2, 1)
-
-	def rsaprideRp(self, event):
-		self.rsa_func(3, 1)
-
 	"""
-	@param type:	0 - PublicKey Encrypt
-					1 - PublicKey Decrypt
-					2 - PrivateKey Encrypt
-					3 - PrivateKey Decrypt
-	@param servietype:	0 - Request
-						1 - Response
+	@param actiontype:	0 - PublicKey Encrypt
+						1 - PublicKey Decrypt
+						2 - PrivateKey Encrypt
+						3 - PrivateKey Decrypt
 	"""
-	def rsa_func(self, type, servietype):
+	def rsaFunc(self, actiontype):
 		status = False
-		typeList = [self.PublicKey, self.PrivateKey]
-		data = self.getSelectedMessagesString(servietype)
+		keyList = [self.PublicKey, self.PrivateKey]
+		data = self.getSelectedMessagesString()
 		try:
 			if self.urlcodeEnableStuts is True:
 				data = self._helpers.urlDecode(data).replace('\n','')
-			if type == 0 or type == 2:
-				data = rsa.encrypt(data.encode('utf-8'), typeList[type%2])
+			if actiontype % 2 == 0:
+				data = rsa.encrypt(data.encode('utf-8'), keyList[actiontype/2])
 				data = base64.encodestring(data)
-			elif type == 1 or type == 3:
+			elif actiontype % 2 == 1:
 				data = base64.decodestring(data.encode('utf-8'))
-				data = rsa.decrypt(data, typeList[type%2]).decode()
+				data = rsa.decrypt(data, keyList[actiontype/2]).decode()
 			if self.urlcodeEnableStuts is True:
 				data = self._helpers.urlEncode(data).replace('\n','')
 			status = True
 		except:
 			pass
 		data = data.replace("\n", "")
-		self.info_print(status, ''.join([self.typeString[type], self._tmpText," --->>> ", data]))
-		self.replaceText(data, status, servietype)
+		self.logPrint(status, ''.join([self.typeString[actiontype], self._tmpText," --->>> ", data]))
+		self.replaceText(data, status)
 
-	def replaceText(self, data, status, servietype):
-		if self.autoReplaceStuts is True and status is True:
+	"""
+	@param data:		RSA result string
+	@param rsastatus:	0 - RSA success
+						1 - RSA failure
+	"""
+	def replaceText(self, data, rsastatus):
+		if self.autoReplaceStuts is True and rsastatus is True:
 			new_text = self._tmpService[:self._messages_index[0]] + self._helpers.stringToBytes(data) + self._tmpService[self._messages_index[1]:]
-			if servietype == 0:
+			if self._servicetype == 0:
 				self._messages[0].setRequest(new_text)
-			elif servietype == 1:
+			elif self._servicetype == 1:
 				self._messages[0].setResponse(new_text)
 
-	def info_print(self, status, data):
+	"""
+	@param status:	0 - all right
+					1 - something wrong
+	@param data:	Log string
+	"""
+	def logPrint(self, status, data):
 		statusList = ["[!] Failure: ", "[+] Success: "]
 		message = statusList[status] + data
 		self.logArea.append(message+'\n')

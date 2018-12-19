@@ -28,8 +28,9 @@ cd $(brew --cellar)/jython/2.7.1/libexec/bin && ./pip install rsa
 ## Q&A
 
 1. 为什么不兼容更多的格式，因为支持库在jython中不好加载(M2Crypto, pycrypto我尝试都不行，如果有成功的请指导我一下Orz)
-2. 为什么菜单要分request/response，因为 Burp 还未开放直接替换文本的 API，导致必须通过覆盖全部文本来替换
 
 ## 效果
+
+[*] 已更新新的方法判断来源，精简菜单选项，动图为老版演示效果。
 
 ![image](https://github.com/sari3l/Burp-Extensions/blob/master/RSA%20Plugin/images/Demonstration.gif)
